@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Informes Técnicos Tech</title>
+    
+    <!-- Fuentes: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- html2pdf.js para exportar a PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <!-- Iconos -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: {
+                            dark: '#020617',    // Slate 950
+                            corp: '#1e1b4b',    // Indigo 950
+                            tech: '#3b82f6',    // Blue 500
+                            light: '#8b5cf6',   // Violet 500
+                            accent: '#06b6d4',  // Cyan 500
+                            bg: '#f8fafc',      // Slate 50
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { background-color: #f8fafc; color: #020617; }
+        @page { size: A4 portrait; margin: 0; }
+
+        .a4-preview {
+            width: 210mm; min-width: 210mm; max-width: 210mm;
+            height: 297mm; min-height: 297mm; max-height: 297mm;
+            background: transparent; 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            margin: 0; padding: 16mm; 
+            position: relative; z-index: 0;
+            overflow: hidden; flex-shrink: 0; 
+            border-radius: 4px;
+        }
+
+        .hide-scrollbar::-webkit-scrollbar { width: 6px; }
+        .hide-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .hide-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+        .hide-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #informe-pdf-wrapper, #informe-pdf-wrapper * { visibility: visible; }
+            #informe-pdf-wrapper { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; box-shadow: none; border-radius: 0; transform: none !important; }
+            .a4-preview { box-shadow: none; padding: 0; min-height: auto; }
+            .no-print { display: none !important; }
+            .page-break { page-break-before: always; break-before: page; }
+        }
+
+        input:focus, textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); transition: all 0.2s ease; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden text-sm">
+
+    <!-- Header / Navbar -->
+    <header class="bg-white/80 backdrop-blur-md border-b border-blue-100 h-16 flex items-center px-6 justify-between shrink-0 z-20 shadow-sm relative">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-tech to-brand-accent flex items-center justify-center text-white shadow-lg shadow-brand-tech/30">
+                <i data-lucide="wrench" class="w-6 h-6"></i>
+            </div>
+            <div class="flex flex-col">
+                <h1 class="font-black text-xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-dark to-brand-tech leading-none uppercase">Informes Técnicos</h1>
+                <div id="cloudSyncIndicator" class="flex items-center gap-1.5 mt-0.5 opacity-90 transition-all duration-300">
+                    <div class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
+                    <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Nube Conectada</span>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-3 flex-wrap justify-end">
+            
+            <button onclick="window.openHistoryModal()" class="px-3.5 py-2 bg-brand-dark hover:bg-slate-800 text-white rounded-xl transition-all duration-200 flex items-center gap-2 font-semibold shadow-md hover:shadow-lg">
+                <i data-lucide="database" class="w-4 h-4 text-brand-accent"></i> BD Informes
+            </button>
+
+            <div class="hidden md:block w-px h-6 bg-blue-100 mx-1"></div>
+
+            <button onclick="window.clearForm()" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all duration-200 flex items-center gap-2 font-semibold border border-slate-200 shadow-sm hover:shadow">
+                <i data-lucide="file-plus" class="w-4 h-4"></i> Nuevo Informe
+            </button>
+            
+            <button onclick="window.saveReport(this)" class="px-5 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 font-bold shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/40">
+                <i data-lucide="cloud-upload" class="w-4 h-4"></i> Guardar
+            </button>
+
+            <button onclick="window.sendWhatsApp(this)" class="px-5 py-2 bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:from-[#128C7E] hover:to-[#075E54] text-white rounded-xl transition-all duration-200 flex items-center gap-2 font-bold shadow-md shadow-green-500/20 hover:shadow-lg hover:shadow-green-500/40">
+                <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+                WhatsApp
+            </button>
+            
+            <button onclick="window.generatePDF(this)" class="px-5 py-2 bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white rounded-xl transition-all duration-200 flex items-center gap-2 font-bold shadow-md shadow-orange-500/20 hover:shadow-lg hover:shadow-orange-500/40">
+                <i data-lucide="file-down" class="w-4 h-4"></i> Descargar PDF
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex overflow-hidden relative bg-slate-50 flex-col lg:flex-row">
+        
+        <!-- LADO IZQUIERDO: Formulario -->
+        <section class="w-full lg:w-[50%] xl:w-[50%] h-full overflow-y-auto hide-scrollbar p-6 lg:p-8 border-r border-blue-100 z-10 bg-white shadow-[10px_0_15px_-3px_rgba(0,0,0,0.02)]">
+            <div class="max-w-2xl mx-auto space-y-6 pb-20">
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">N° Informe</label>
+                        <div class="flex items-center bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 transition-colors focus-within:border-brand-tech focus-within:bg-white">
+                            <span class="text-slate-400 mr-1 font-mono font-bold">IT-</span>
+                            <input type="text" id="r_num" class="w-full bg-transparent font-mono font-black text-brand-tech focus:outline-none" oninput="window.updatePreview()">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Fecha</label>
+                        <input type="date" id="r_date" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 font-medium focus:bg-white transition-colors" onchange="window.updatePreview()">
+                    </div>
+                </div>
+
+                <div class="bg-blue-50/40 p-5 rounded-2xl border border-blue-100 shadow-sm">
+                    <h3 class="text-xs font-black text-brand-tech uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <div class="p-1.5 bg-white rounded-md text-brand-tech shadow-sm"><i data-lucide="user" class="w-4 h-4"></i></div> Datos del Cliente
+                    </h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="col-span-2">
+                            <input type="text" id="r_clientName" placeholder="Nombre o Razón Social" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 font-medium transition-all shadow-sm" oninput="window.updatePreview()">
+                        </div>
+                        <div>
+                            <input type="text" id="r_clientDoc" placeholder="DNI / RUC" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 font-medium transition-all shadow-sm" oninput="window.updatePreview()">
+                        </div>
+                        <div>
+                            <input type="text" id="r_clientPhone" placeholder="Teléfono / WhatsApp" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 font-medium transition-all shadow-sm" oninput="window.updatePreview()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <h3 class="text-xs font-black text-slate-700 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <div class="p-1.5 bg-white rounded-md text-slate-500 shadow-sm"><i data-lucide="monitor" class="w-4 h-4"></i></div> Datos del Equipo
+                    </h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="col-span-2">
+                            <input type="text" id="r_equipment" placeholder="Tipo de Equipo (Ej. DVR 8 Canales, Laptop, PC Gamer)" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 font-medium transition-all shadow-sm" oninput="window.updatePreview()">
+                        </div>
+                        <div>
+                            <input type="text" id="r_brand" placeholder="Marca / Modelo" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 font-medium transition-all shadow-sm" oninput="window.updatePreview()">
+                        </div>
+                        <div>
+                            <input type="text" id="r_serial" placeholder="Número de Serie (S/N)" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 font-medium transition-all shadow-sm" oninput="window.updatePreview()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-6 pt-2">
+                    <div>
+                        <label class="block text-xs font-black text-red-500 mb-2 uppercase tracking-wider flex items-center gap-1.5"><i data-lucide="alert-triangle" class="w-4 h-4"></i> Falla Reportada / Motivo</label>
+                        <textarea id="r_issue" rows="2" placeholder="¿Qué reportó el cliente que fallaba?" class="w-full bg-red-50/50 border border-red-200 rounded-xl px-4 py-3 font-medium focus:border-red-400 focus:bg-white shadow-sm transition-all whitespace-pre-wrap" oninput="window.updatePreview()"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-black text-brand-tech mb-2 uppercase tracking-wider flex items-center gap-1.5"><i data-lucide="search" class="w-4 h-4"></i> Diagnóstico Técnico</label>
+                        <textarea id="r_diagnosis" rows="4" placeholder="Detalle técnico del análisis realizado..." class="w-full bg-blue-50/50 border border-blue-200 rounded-xl px-4 py-3 font-medium focus:border-brand-tech focus:bg-white shadow-sm transition-all whitespace-pre-wrap" oninput="window.updatePreview()"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-black text-emerald-600 mb-2 uppercase tracking-wider flex items-center gap-1.5"><i data-lucide="check-circle-2" class="w-4 h-4"></i> Conclusión / Recomendación</label>
+                        <textarea id="r_solution" rows="3" placeholder="Acciones sugeridas o soluciones a aplicar..." class="w-full bg-emerald-50/50 border border-emerald-200 rounded-xl px-4 py-3 font-medium focus:border-emerald-500 focus:bg-white shadow-sm transition-all whitespace-pre-wrap" oninput="window.updatePreview()"></textarea>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN DE EVIDENCIAS / IMÁGENES -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mt-6">
+                    <h3 class="text-xs font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <div class="p-1.5 bg-slate-100 rounded-md text-emerald-500"><i data-lucide="image" class="w-4 h-4"></i></div> Evidencias / Imágenes
+                    </h3>
+                    <div class="border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center text-slate-500 hover:bg-slate-50 hover:border-brand-tech transition-colors cursor-pointer relative">
+                        <i data-lucide="upload-cloud" class="w-8 h-8 mb-2 text-slate-400"></i>
+                        <p class="text-xs font-bold text-center">Haz clic para subir o presiona <kbd class="bg-slate-200 px-1.5 py-0.5 rounded text-slate-700 mx-1 border border-slate-300 shadow-sm">Ctrl+V</kbd> para pegar</p>
+                        <input type="file" id="image-upload-input" accept="image/*" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                    </div>
+                    <div id="image-thumbnails" class="grid grid-cols-4 gap-3 mt-4 hidden"></div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- LADO DERECHO: Vista Previa -->
+        <section id="preview-wrapper-section" class="w-full lg:w-[50%] xl:w-[50%] h-full overflow-y-auto bg-slate-200 p-4 lg:p-8 flex justify-center items-start shadow-inner">
+            <div id="report-preview-scaler" class="origin-top flex justify-center transition-transform duration-200 z-10" style="width: 210mm;">
+                
+                <!-- WRAPPER PRINCIPAL PARA MÚLTIPLES HOJAS -->
+                <div id="informe-pdf-wrapper" class="flex flex-col gap-6 w-full items-center">
+                    
+                    <div id="report-preview-section" class="a4-preview bg-white flex flex-col relative z-0 transition-all duration-300">
+                        
+                        <img src="https://i.imgur.com/fObiYn6.png" alt="Fondo" class="absolute inset-0 w-full h-full object-cover -z-10 opacity-70">
+                        
+                        <div class="flex justify-between items-start mb-6 pb-4 border-b-2 border-brand-corp/30">
+                            <div class="flex items-center gap-6 flex-1 min-w-0">
+                                <div class="w-40 bg-transparent flex items-center justify-center shrink-0">
+                                    <img src="https://i.imgur.com/Dla3rBv.png" alt="Logo" class="max-w-full max-h-20 object-contain">
+                                </div>
+                                <div class="flex-1 min-w-0 flex flex-col justify-center">
+                                    <div class="text-gray-800 text-xs space-y-0.5 font-medium">
+                                        <p><strong class="text-gray-900">KGB DISTRIBUIDORES</strong></p>
+                                        <p><strong class="text-gray-900">RUC:</strong> 20600094719</p>
+                                        <p>Jr. 2 de mayo. 477 Int 201</p>
+                                        <p class="font-bold text-brand-tech">902 532 240</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-right shrink-0 ml-4">
+                                <div class="bg-brand-dark text-white px-5 py-2 rounded-l-full -mr-16 shadow-md border-l-4 border-brand-accent">
+                                    <h2 class="text-xl font-black tracking-widest uppercase">INFORME TÉCNICO</h2>
+                                </div>
+                                <div class="mt-3 pr-2">
+                                    <p class="text-sm font-bold text-gray-800">N° <span class="text-brand-tech text-lg">IT-<span id="pr_num">0000</span></span></p>
+                                    <p class="text-xs text-gray-600 mt-1 font-medium">Fecha: <span id="pr_date" class="text-gray-800">--/--/----</span></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4 mb-6">
+                            <div class="bg-white/80 backdrop-blur-md rounded-lg p-3 border border-brand-corp/20 shadow-sm">
+                                <h4 class="text-[10px] text-brand-corp font-black uppercase tracking-widest mb-2 border-b border-brand-corp/10 pb-1"><i data-lucide="user" class="w-3 h-3 inline"></i> Cliente</h4>
+                                <p class="text-sm font-bold text-slate-800 uppercase" id="pr_clientName">----------------</p>
+                                <p class="text-[11px] text-slate-600 font-medium mt-1">DNI/RUC: <span id="pr_clientDoc">--</span> | Tel: <span id="pr_clientPhone">--</span></p>
+                            </div>
+                            <div class="bg-white/80 backdrop-blur-md rounded-lg p-3 border border-brand-corp/20 shadow-sm">
+                                <h4 class="text-[10px] text-brand-corp font-black uppercase tracking-widest mb-2 border-b border-brand-corp/10 pb-1"><i data-lucide="monitor" class="w-3 h-3 inline"></i> Equipo</h4>
+                                <p class="text-sm font-bold text-brand-tech uppercase" id="pr_equipment">----------------</p>
+                                <p class="text-xs text-slate-600 font-medium mt-1">Marca/Mod: <span id="pr_brand">--</span> | S/N: <span id="pr_serial">--</span></p>
+                            </div>
+                        </div>
+
+                        <div class="flex-1 space-y-5">
+                            <div>
+                                <div class="bg-red-500 text-white text-xs font-black uppercase px-3 py-1.5 rounded-t-lg inline-block shadow-sm">Motivo de Ingreso</div>
+                                <div class="bg-white/70 backdrop-blur-sm border border-red-200 rounded-b-lg rounded-tr-lg p-4 text-sm text-gray-800 leading-relaxed min-h-[60px] whitespace-pre-wrap" id="pr_issue">...</div>
+                            </div>
+                            <div>
+                                <div class="bg-brand-tech text-white text-xs font-black uppercase px-3 py-1.5 rounded-t-lg inline-block shadow-sm">Diagnóstico Técnico</div>
+                                <div class="bg-white/70 backdrop-blur-sm border border-blue-200 rounded-b-lg rounded-tr-lg p-4 text-sm text-gray-800 leading-relaxed min-h-[120px] text-justify whitespace-pre-wrap" id="pr_diagnosis">...</div>
+                            </div>
+                            <div>
+                                <div class="bg-emerald-500 text-white text-xs font-black uppercase px-3 py-1.5 rounded-t-lg inline-block shadow-sm">Conclusión / Recomendación</div>
+                                <div class="bg-white/70 backdrop-blur-sm border border-emerald-200 rounded-b-lg rounded-tr-lg p-4 text-sm text-gray-800 leading-relaxed min-h-[80px] whitespace-pre-wrap" id="pr_solution">...</div>
+                            </div>
+                        </div>
+
+                        <div class="mt-12 flex justify-center items-end pb-8">
+                            <div class="w-72 text-center flex flex-col items-center">
+                                <img src="https://i.imgur.com/R2Wi8kr.png" alt="Firma Autorizada" class="h-24 object-contain z-10 -mb-3">
+                                <div class="border-t-2 border-brand-corp/60 w-full pt-2 font-bold text-sm text-slate-800">José Leonaldo Vizcarra Ramirez</div>
+                                <div class="text-xs text-slate-500 font-medium mt-1">DNI: 44865369<br><span class="font-bold text-brand-tech">Técnico Especialista - KGB Distribuidores</span></div>
+                            </div>
+                        </div>
+
+                        <div class="mt-auto text-center border-t border-brand-corp/20 pt-3 relative">
+                            <p class="text-[10px] font-bold text-brand-corp/60 uppercase">Este documento certifica el estado técnico del equipo al momento de la revisión.</p>
+                            <p class="absolute bottom-1 right-2 text-[8px] font-black text-brand-tech opacity-70 uppercase tracking-widest">Creado por JVIZCARRA</p>
+                        </div>
+
+                    </div>
+                    
+                    <!-- CONTENEDOR PARA LAS IMÁGENES EXTRA -->
+                    <div id="preview-images-section" class="w-full flex flex-col gap-6"></div>
+
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- MODAL DE BASE DE DATOS DE INFORMES -->
+    <div id="historyModal" class="hidden fixed inset-0 bg-brand-dark/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-5xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-slate-200">
+            <div class="px-6 py-4 border-b border-slate-200 flex flex-col md:flex-row justify-between items-center bg-slate-50 gap-4">
+                <h2 class="text-xl font-black text-brand-dark flex items-center gap-2 uppercase tracking-wide">
+                    <div class="p-1.5 bg-white rounded shadow-sm text-brand-accent"><i data-lucide="database" class="w-5 h-5"></i></div> Historial de Informes
+                </h2>
+                <div class="flex items-center gap-3 w-full md:w-auto">
+                    <div class="relative flex-1 md:w-64">
+                        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
+                        <input type="text" id="searchHistory" oninput="window.renderHistoryTable()" placeholder="Buscar cliente, equipo o N°..." class="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:border-brand-tech focus:ring-2 focus:ring-brand-tech/20 outline-none transition-all shadow-sm">
+                    </div>
+                    <button onclick="window.closeHistoryModal()" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors bg-white border border-slate-200 shadow-sm">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-6 bg-slate-50">
+                <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-100 text-slate-500 text-[10px] uppercase font-black tracking-wider border-b border-slate-200">
+                            <tr>
+                                <th class="py-3 px-4">Fecha</th>
+                                <th class="py-3 px-4">N° Informe</th>
+                                <th class="py-3 px-4">Cliente</th>
+                                <th class="py-3 px-4">Equipo</th>
+                                <th class="py-3 px-4 text-center">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dbTableBody" class="text-sm divide-y divide-slate-50">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 📄 PLANTILLA OCULTA PARA IMPRIMIR DESDE LA BASE DE DATOS -->
+    <div id="db-hidden-container" class="fixed -left-[9999px] top-0">
+        <div id="db-report-template" class="a4-preview bg-white flex flex-col relative z-0" style="padding: 16mm; border-radius: 0;">
+            <img src="https://i.imgur.com/fObiYn6.png" alt="Fondo" class="absolute inset-0 w-full h-full object-cover -z-10 opacity-70">
+            
+            <div class="flex justify-between items-start mb-6 pb-4 border-b-2 border-brand-corp/30">
+                <div class="flex items-center gap-6 flex-1 min-w-0">
+                    <div class="w-40 bg-transparent flex items-center justify-center shrink-0">
+                        <img src="https://i.imgur.com/Dla3rBv.png" alt="Logo" class="max-w-full max-h-20 object-contain">
+                    </div>
+                    <div class="flex-1 min-w-0 flex flex-col justify-center">
+                        <div class="text-gray-800 text-xs space-y-0.5 font-medium">
+                            <p><strong class="text-gray-900">KGB DISTRIBUIDORES</strong></p>
+                            <p><strong class="text-gray-900">RUC:</strong> 20600094719</p>
+                            <p>Jr. 2 de mayo. 477 Int 201</p>
+                            <p class="font-bold text-brand-tech">902 532 240</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-right shrink-0 ml-4">
+                    <div class="bg-brand-dark text-white px-5 py-2 rounded-l-full -mr-16 shadow-md border-l-4 border-brand-accent">
+                        <h2 class="text-xl font-black tracking-widest uppercase">INFORME TÉCNICO</h2>
+                    </div>
+                    <div class="mt-3 pr-2">
+                        <p class="text-sm font-bold text-gray-800">N° <span class="text-brand-tech text-lg"><span id="db_pr_num">0000</span></span></p>
+                        <p class="text-xs text-gray-600 mt-1 font-medium">Fecha: <span id="db_pr_date" class="text-gray-800">--/--/----</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="bg-white/80 backdrop-blur-md rounded-lg p-3 border border-brand-corp/20 shadow-sm">
+                    <h4 class="text-[10px] text-brand-corp font-black uppercase tracking-widest mb-2 border-b border-brand-corp/10 pb-1"><i data-lucide="user" class="w-3 h-3 inline"></i> Cliente</h4>
+                    <p class="text-sm font-bold text-slate-800 uppercase" id="db_pr_clientName">----------------</p>
+                    <p class="text-[11px] text-slate-600 font-medium mt-1">DNI/RUC: <span id="db_pr_clientDoc">--</span> | Tel: <span id="db_pr_clientPhone">--</span></p>
+                </div>
+                <div class="bg-white/80 backdrop-blur-md rounded-lg p-3 border border-brand-corp/20 shadow-sm">
+                    <h4 class="text-[10px] text-brand-corp font-black uppercase tracking-widest mb-2 border-b border-brand-corp/10 pb-1"><i data-lucide="monitor" class="w-3 h-3 inline"></i> Equipo</h4>
+                    <p class="text-sm font-bold text-brand-tech uppercase" id="db_pr_equipment">----------------</p>
+                    <p class="text-xs text-slate-600 font-medium mt-1">Marca/Mod: <span id="db_pr_brand">--</span> | S/N: <span id="db_pr_serial">--</span></p>
+                </div>
+            </div>
+
+            <div class="flex-1 space-y-5">
+                <div>
+                    <div class="bg-red-500 text-white text-xs font-black uppercase px-3 py-1.5 rounded-t-lg inline-block shadow-sm">Motivo de Ingreso</div>
+                    <div class="bg-white/70 backdrop-blur-sm border border-red-200 rounded-b-lg rounded-tr-lg p-4 text-sm text-gray-800 leading-relaxed min-h-[60px] whitespace-pre-wrap" id="db_pr_issue">...</div>
+                </div>
+                <div>
+                    <div class="bg-brand-tech text-white text-xs font-black uppercase px-3 py-1.5 rounded-t-lg inline-block shadow-sm">Diagnóstico Técnico</div>
+                    <div class="bg-white/70 backdrop-blur-sm border border-blue-200 rounded-b-lg rounded-tr-lg p-4 text-sm text-gray-800 leading-relaxed min-h-[120px] text-justify whitespace-pre-wrap" id="db_pr_diagnosis">...</div>
+                </div>
+                <div>
+                    <div class="bg-emerald-500 text-white text-xs font-black uppercase px-3 py-1.5 rounded-t-lg inline-block shadow-sm">Conclusión / Recomendación</div>
+                    <div class="bg-white/70 backdrop-blur-sm border border-emerald-200 rounded-b-lg rounded-tr-lg p-4 text-sm text-gray-800 leading-relaxed min-h-[80px] whitespace-pre-wrap" id="db_pr_solution">...</div>
+                </div>
+            </div>
+
+            <div class="mt-12 flex justify-center items-end pb-8">
+                <div class="w-72 text-center flex flex-col items-center">
+                    <img src="https://i.imgur.com/R2Wi8kr.png" alt="Firma Autorizada" class="h-24 object-contain z-10 -mb-3">
+                    <div class="border-t-2 border-brand-corp/60 w-full pt-2 font-bold text-sm text-slate-800">José Leonaldo Vizcarra Ramirez</div>
+                    <div class="text-xs text-slate-500 font-medium mt-1">DNI: 44865369<br><span class="font-bold text-brand-tech">Técnico Especialista - KGB Distribuidores</span></div>
+                </div>
+            </div>
+
+            <div class="mt-auto text-center border-t border-brand-corp/20 pt-3 relative">
+                <p class="text-[10px] font-bold text-brand-corp/60 uppercase">Este documento certifica el estado técnico del equipo al momento de la revisión.</p>
+                <p class="absolute bottom-1 right-2 text-[8px] font-black text-brand-tech opacity-70 uppercase tracking-widest">Creado por JVIZCARRA</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // ==========================================
+        // CONFIGURACIÓN DE URL DE GOOGLE SHEETS
+        // ==========================================
+        window.WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwQyGYES7WfxQVD3aUz7zgPwIop0uq1V5SofopV7Gt1TeL_aiqX7wlBCFIXr1QgRYWlQA/exec";
+
+        // FORZAR MAYÚSCULAS EN TODOS LOS CAMPOS DE TEXTO
+        document.addEventListener('input', function(e) {
+            if ((e.target.tagName === 'INPUT' && e.target.type === 'text') || e.target.tagName === 'TEXTAREA') {
+                if (e.target.id === 'searchHistory') return;
+                const start = e.target.selectionStart;
+                const end = e.target.selectionEnd;
+                e.target.value = e.target.value.toUpperCase();
+                e.target.setSelectionRange(start, end);
+            }
+        });
+
+        lucide.createIcons();
+
+        // ESTADO GLOBAL
+        window.currentEditId = null;
+        let reportHistory = [];
+        window.informeImages = []; // Estado de imágenes
+
+        // MOTOR DE ESCALADO INTELIGENTE DE LA VISTA PREVIA
+        window.adjustScale = () => {
+            const wrapper = document.getElementById('preview-wrapper-section');
+            const scaler = document.getElementById('report-preview-scaler');
+            if(wrapper && scaler) {
+                const availableWidth = wrapper.clientWidth - 32;
+                const a4Width = 794;
+                let scale = availableWidth / a4Width; 
+                if(scale > 1) scale = 1;
+                
+                scaler.style.transform = `scale(${scale})`;
+                scaler.style.width = `${a4Width}px`;
+                
+                const numPages = 1 + Math.ceil(window.informeImages.length / 2);
+                const gapPixels = 24 * (numPages - 1); 
+                const totalHeight = (1123 * numPages) + gapPixels;
+                
+                scaler.style.height = `${totalHeight * scale}px`;
+            }
+        };
+        window.addEventListener('resize', window.adjustScale);
+
+        // OBTENER HISTORIAL Y CONSECUTIVO DESDE LA NUBE
+        window.fetchData = async () => {
+            const inputRep = document.getElementById('r_num');
+            if (!window.currentEditId && inputRep.value === "") inputRep.value = "..."; 
+            
+            try {
+                window.setCloudStatus('syncing');
+                const response = await fetch(window.WEBHOOK_URL);
+                const data = await response.json();
+                
+                if (!window.currentEditId) {
+                    inputRep.value = String(data.nextRepNum || 1).padStart(4, '0');
+                }
+                
+                if (data.history) {
+                    reportHistory = data.history;
+                    window.renderHistoryTable();
+                }
+                
+                window.setCloudStatus('success'); 
+                window.updatePreview();
+            } catch (error) {
+                console.error("Error sincronizando:", error);
+                window.setCloudStatus('error'); 
+            }
+        };
+
+        window.initDefaults = () => {
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            document.getElementById('r_date').value = `${yyyy}-${mm}-${dd}`;
+            
+            window.fetchData();
+            setTimeout(window.adjustScale, 100);
+        };
+
+        window.openHistoryModal = () => document.getElementById('historyModal').classList.remove('hidden');
+        window.closeHistoryModal = () => document.getElementById('historyModal').classList.add('hidden');
+
+        window.renderHistoryTable = () => {
+            const tbody = document.getElementById('dbTableBody');
+            tbody.innerHTML = '';
+            
+            const searchInput = document.getElementById('searchHistory');
+            const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+
+            const filteredReports = reportHistory.filter(rep => {
+                if (!rep) return false;
+                const searchStr = `${rep.clientName || ''} ${rep.num || ''} ${rep.equipment || ''} ${rep.date || ''}`.toLowerCase();
+                return searchStr.includes(searchTerm);
+            });
+
+            filteredReports.forEach(rep => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="py-3 px-4 text-slate-500 font-semibold">${rep.date}</td>
+                    <td class="py-3 px-4 font-black text-brand-corp">${rep.num}</td>
+                    <td class="py-3 px-4 font-semibold text-slate-800 truncate max-w-[200px]">${rep.clientName}</td>
+                    <td class="py-3 px-4 font-medium text-slate-600 truncate max-w-[200px]">${rep.equipment}</td>
+                    <td class="py-3 px-4 text-center whitespace-nowrap">
+                        <button onclick="window.downloadReportFromDB('${rep.id}', this)" title="Descargar PDF" class="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded transition-colors mr-1"><i data-lucide="file-down" class="w-4 h-4"></i></button>
+                        <button onclick="window.loadReport('${rep.id}')" title="Cargar Informe" class="text-blue-500 hover:text-blue-700 hover:bg-blue-50 p-1.5 rounded transition-colors mr-1"><i data-lucide="edit" class="w-4 h-4"></i></button>
+                        <button onclick="window.deleteReport('${rep.id}')" title="Eliminar" class="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            lucide.createIcons();
+        };
+
+        window.loadReport = (id) => {
+            const rep = reportHistory.find(r => r.id === id);
+            if (!rep) return;
+
+            window.currentEditId = id; 
+
+            let rawNum = rep.num;
+            if(rawNum.startsWith('IT-')) rawNum = rawNum.substring(3);
+            
+            document.getElementById('r_num').value = rawNum;
+            document.getElementById('r_date').value = rep.date || '';
+            document.getElementById('r_clientName').value = rep.clientName || '';
+            document.getElementById('r_clientDoc').value = rep.clientDoc || '';
+            document.getElementById('r_clientPhone').value = rep.clientPhone || '';
+            
+            document.getElementById('r_equipment').value = rep.equipment || '';
+            document.getElementById('r_brand').value = rep.brand || '';
+            document.getElementById('r_serial').value = rep.serial || '';
+            
+            document.getElementById('r_issue').value = rep.issue || '';
+            document.getElementById('r_diagnosis').value = rep.diagnosis || '';
+            document.getElementById('r_solution').value = rep.solution || '';
+
+            window.informeImages = []; // Limpiar imágenes al cargar uno antiguo
+            window.updatePreview();
+            window.closeHistoryModal();
+            
+            const numInput = document.getElementById('r_num');
+            numInput.classList.add('bg-yellow-100', 'text-yellow-800');
+            setTimeout(() => numInput.classList.remove('bg-yellow-100', 'text-yellow-800'), 1500);
+        };
+
+        window.deleteReport = async (id) => {
+            if (confirm("¿Eliminar permanentemente este Informe de la Base de Datos?")) {
+                try {
+                    window.setCloudStatus('syncing');
+                    await fetch(window.WEBHOOK_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({ action: "delete_informe", id: id })
+                    });
+                    
+                    reportHistory = reportHistory.filter(r => r.id !== id);
+                    window.renderHistoryTable();
+                    window.setCloudStatus('success');
+                } catch(e) {
+                    alert("Error eliminando en la nube.");
+                    window.setCloudStatus('error');
+                }
+            }
+        };
+
+        window.updatePreview = () => {
+            const syncText = (fromId, toId, defaultText = '') => {
+                const val = document.getElementById(fromId).value.trim();
+                const el = document.getElementById(toId);
+                if (el) el.innerText = val || defaultText;
+            };
+
+            syncText('r_num', 'pr_num', '0000');
+            syncText('r_clientName', 'pr_clientName', '----------------');
+            syncText('r_clientDoc', 'pr_clientDoc', '--');
+            syncText('r_clientPhone', 'pr_clientPhone', '--');
+            syncText('r_equipment', 'pr_equipment', '----------------');
+            syncText('r_brand', 'pr_brand', '--');
+            syncText('r_serial', 'pr_serial', '--');
+            
+            syncText('r_issue', 'pr_issue', 'No especificado.');
+            syncText('r_diagnosis', 'pr_diagnosis', 'En revisión...');
+            syncText('r_solution', 'pr_solution', 'Pendiente.');
+
+            const dateVal = document.getElementById('r_date').value;
+            if(dateVal) {
+                const [y, m, d] = dateVal.split('-');
+                document.getElementById('pr_date').innerText = `${d}/${m}/${y}`;
+            }
+            
+            window.renderInformeImages();
+            window.adjustScale();
+        };
+
+        window.clearForm = () => {
+            if(confirm('¿Crear un nuevo informe técnico en blanco?')) {
+                document.getElementById('r_clientName').value = '';
+                document.getElementById('r_clientDoc').value = '';
+                document.getElementById('r_clientPhone').value = '';
+                document.getElementById('r_equipment').value = '';
+                document.getElementById('r_brand').value = '';
+                document.getElementById('r_serial').value = '';
+                document.getElementById('r_issue').value = '';
+                document.getElementById('r_diagnosis').value = '';
+                document.getElementById('r_solution').value = '';
+                
+                window.currentEditId = null; 
+                window.informeImages = [];
+                
+                const now = new Date();
+                document.getElementById('r_date').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                
+                window.fetchData();
+            }
+        };
+
+        window.generatePDF = (btn) => {
+            const scaler = document.getElementById('report-preview-scaler');
+            scaler.style.transform = 'scale(1)'; 
+            scaler.style.height = 'auto';
+
+            const wrapper = document.getElementById('informe-pdf-wrapper');
+            const imagesWrapper = document.getElementById('preview-images-section');
+            
+            wrapper.classList.remove('gap-6'); 
+            if (imagesWrapper) imagesWrapper.classList.remove('gap-6');
+
+            const pages = wrapper.querySelectorAll('.a4-preview');
+            const originalStyles = [];
+            pages.forEach(p => {
+                originalStyles.push({ shadow: p.style.boxShadow, radius: p.style.borderRadius, margin: p.style.margin });
+                p.style.boxShadow = 'none';
+                p.style.borderRadius = '0px';
+                p.style.margin = '0px';
+            });
+
+            const opt = {
+                margin: 0,
+                filename: `Informe_Tecnico_IT-${document.getElementById('r_num').value || '0001'}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, scrollY: 0 }, 
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak: { mode: 'css', before: '.page-break' }
+            };
+
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Generando...';
+            lucide.createIcons();
+
+            html2pdf().set(opt).from(wrapper).save().then(() => {
+                btn.innerHTML = originalText;
+                
+                wrapper.classList.add('gap-6');
+                if (imagesWrapper) imagesWrapper.classList.add('gap-6');
+                
+                pages.forEach((p, i) => {
+                    p.style.boxShadow = originalStyles[i].shadow;
+                    p.style.borderRadius = originalStyles[i].radius;
+                    p.style.margin = originalStyles[i].margin;
+                });
+                lucide.createIcons();
+                window.adjustScale(); 
+            });
+        };
+
+        window.downloadReportFromDB = (id, btn) => {
+            const rep = reportHistory.find(r => r.id === id);
+            if (!rep) return;
+
+            // Llenar datos fantasma
+            let rawNum = rep.num;
+            if(!rawNum.startsWith('IT-')) rawNum = "IT-" + rawNum;
+            
+            document.getElementById('db_pr_num').innerText = rawNum;
+            document.getElementById('db_pr_clientName').innerText = rep.clientName || '----------------';
+            document.getElementById('db_pr_clientDoc').innerText = rep.clientDoc || '--';
+            document.getElementById('db_pr_clientPhone').innerText = rep.clientPhone || '--';
+            document.getElementById('db_pr_equipment').innerText = rep.equipment || '----------------';
+            document.getElementById('db_pr_brand').innerText = rep.brand || '--';
+            document.getElementById('db_pr_serial').innerText = rep.serial || '--';
+            document.getElementById('db_pr_issue').innerText = rep.issue || 'No especificado.';
+            document.getElementById('db_pr_diagnosis').innerText = rep.diagnosis || 'En revisión...';
+            document.getElementById('db_pr_solution').innerText = rep.solution || 'Pendiente.';
+
+            if(rep.date) {
+                const [y, m, d] = rep.date.split('-');
+                document.getElementById('db_pr_date').innerText = `${d}/${m}/${y}`;
+            }
+
+            const element = document.getElementById('db-report-template');
+            element.style.transform = 'scale(1)';
+
+            const opt = {
+                margin: 0,
+                filename: `Informe_Tecnico_${rawNum}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, scrollY: 0 }, 
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-rose-500"></i>';
+            btn.classList.add('opacity-70', 'cursor-not-allowed');
+            lucide.createIcons();
+
+            html2pdf().set(opt).from(element).toPdf().get('pdf').then(function (pdf) {
+                const totalPages = pdf.internal.getNumberOfPages();
+                for (let i = totalPages; i > 1; i--) { pdf.deletePage(i); } 
+            }).save().then(() => {
+                btn.innerHTML = originalHTML;
+                btn.classList.remove('opacity-70', 'cursor-not-allowed');
+                lucide.createIcons();
+            });
+        };
+
+        // LÓGICA DE EVIDENCIAS / IMÁGENES
+        document.getElementById('image-upload-input').addEventListener('change', function(e) {
+            window.handleImageFiles(e.target.files);
+            this.value = '';
+        });
+
+        document.addEventListener('paste', function(e) {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            
+            if(e.clipboardData && e.clipboardData.items) {
+                const cb_items = e.clipboardData.items;
+                const imageFiles = [];
+                for (let i = 0; i < cb_items.length; i++) {
+                    if (cb_items[i].type.indexOf('image') !== -1) {
+                        imageFiles.push(cb_items[i].getAsFile());
+                    }
+                }
+                if(imageFiles.length > 0) {
+                    e.preventDefault();
+                    window.handleImageFiles(imageFiles);
+                }
+            }
+        });
+
+        window.handleImageFiles = (files) => {
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    window.informeImages.push(event.target.result);
+                    window.updatePreview(); 
+                };
+                reader.readAsDataURL(file);
+            });
+        };
+
+        window.removeImage = (index) => {
+            window.informeImages.splice(index, 1);
+            window.updatePreview();
+        };
+
+        window.renderInformeImages = () => {
+            const thumbContainer = document.getElementById('image-thumbnails');
+            if (window.informeImages.length === 0) {
+                thumbContainer.classList.add('hidden');
+                thumbContainer.innerHTML = '';
+            } else {
+                thumbContainer.classList.remove('hidden');
+                thumbContainer.innerHTML = window.informeImages.map((src, index) => `
+                    <div class="relative aspect-square rounded-lg overflow-hidden border border-slate-200 group bg-slate-100">
+                        <img src="${src}" class="w-full h-full object-cover">
+                        <button onclick="window.removeImage(${index})" class="absolute top-1 right-1 bg-red-500 text-white rounded-md p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-md">
+                            <i data-lucide="x" class="w-3 h-3"></i>
+                        </button>
+                    </div>
+                `).join('');
+                lucide.createIcons();
+            }
+
+            const imagesWrapper = document.getElementById('preview-images-section');
+            if(!imagesWrapper) return;
+            imagesWrapper.innerHTML = '';
+            
+            if (window.informeImages.length === 0) return;
+
+            let currentPage = null;
+            let imageGrid = null;
+
+            window.informeImages.forEach((imgSrc, index) => {
+                if (index % 2 === 0) {
+                    currentPage = document.createElement('div');
+                    currentPage.className = 'a4-preview page-break bg-white flex flex-col relative z-0 transition-all duration-300';
+                    currentPage.innerHTML = `
+                        <img src="https://i.imgur.com/fObiYn6.png" alt="Fondo" class="absolute inset-0 w-full h-full object-cover -z-10 opacity-40">
+                        <div class="flex justify-between items-end mb-6 pb-4 border-b-2 border-brand-corp/30 shrink-0">
+                            <div class="flex items-center gap-4">
+                                <img src="https://i.imgur.com/Dla3rBv.png" alt="Logo" class="h-10 object-contain">
+                                <div>
+                                    <h2 class="text-xl font-black tracking-widest text-brand-corp uppercase">EVIDENCIAS FOTOGRÁFICAS</h2>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm font-bold text-gray-800">Ref: <span class="text-brand-tech">IT-${document.getElementById('r_num').value || '0000'}</span></p>
+                            </div>
+                        </div>
+                    `;
+                    imageGrid = document.createElement('div');
+                    imageGrid.className = 'flex-1 grid grid-rows-2 gap-6 pb-8 min-h-0'; 
+                    currentPage.appendChild(imageGrid);
+                    imagesWrapper.appendChild(currentPage);
+                }
+                
+                const imgContainer = document.createElement('div');
+                imgContainer.className = 'w-full h-full flex items-center justify-center p-2 bg-white/70 backdrop-blur-sm border border-slate-300 rounded-xl shadow-inner overflow-hidden min-h-0';
+                imgContainer.innerHTML = `<img src="${imgSrc}" class="max-w-full max-h-full object-contain rounded-lg">`;
+                imageGrid.appendChild(imgContainer);
+            });
+        };
+
+        window.sendWhatsApp = (btn) => {
+            const phoneRaw = document.getElementById('r_clientPhone').value.trim();
+            if (!phoneRaw) {
+                alert("Por favor, ingresa el número de teléfono en los 'Datos del Cliente'.");
+                return;
+            }
+            
+            let phone = phoneRaw.replace(/\D/g, '');
+            if (phone.length === 9 && phone.startsWith('9')) {
+                phone = '51' + phone;
+            }
+
+            const clientName = document.getElementById('r_clientName').value.trim() || 'Estimado Cliente';
+            const rawNum = document.getElementById('r_num').value.trim();
+            const repNum = rawNum.startsWith('IT-') ? rawNum : "IT-" + rawNum;
+            const equipment = document.getElementById('r_equipment').value.trim() || 'equipo';
+
+            const message = `Hola *${clientName}*, te saluda el Dpto. Técnico de *KGB Distribuidores*. 👋\n\nTe enviamos adjunto el *Informe Técnico (${repNum})* con el diagnóstico de tu ${equipment}.\n\nEl PDF contiene el detalle de la revisión y nuestras recomendaciones. 📄✨ Quedamos a tu entera disposición. 🤝`;
+
+            const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+            window.open(waUrl, '_blank');
+
+            const pdfBtn = document.querySelector('button[onclick="window.generatePDF(this)"]');
+            if (pdfBtn) window.generatePDF(pdfBtn);
+        };
+
+        window.setCloudStatus = (status) => {
+            const ind = document.getElementById('cloudSyncIndicator');
+            if(status === 'syncing') {
+                ind.innerHTML = `<i data-lucide="refresh-cw" class="w-3 h-3 text-blue-500 animate-spin"></i> <span class="text-[10px] text-blue-600 font-bold uppercase tracking-wider">Sincronizando...</span>`;
+            } else if(status === 'success') {
+                ind.innerHTML = `<i data-lucide="check-circle" class="w-3 h-3 text-emerald-500"></i> <span class="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Sincronizado</span>`;
+                setTimeout(() => {
+                    ind.innerHTML = `<div class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div> <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Nube Conectada</span>`;
+                    lucide.createIcons();
+                }, 3000);
+            } else if(status === 'error') {
+                ind.innerHTML = `<i data-lucide="cloud-off" class="w-3 h-3 text-red-500"></i> <span class="text-[10px] text-red-600 font-bold uppercase tracking-wider">Error de Red</span>`;
+            }
+            lucide.createIcons();
+        };
+
+        window.saveReport = async (btn) => {
+            if (btn.disabled) return;
+            const originalText = btn.innerHTML;
+            
+            try {
+                if(!window.WEBHOOK_URL || window.WEBHOOK_URL === "PON_AQUI_EL_NUEVO_LINK") {
+                    alert("Aún no has configurado el enlace de Google Sheets (WEBHOOK_URL).");
+                    return;
+                }
+
+                btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Guardando...';
+                btn.disabled = true;
+                btn.classList.add('opacity-75', 'cursor-wait');
+                lucide.createIcons();
+
+                const rawNum = document.getElementById('r_num').value.trim();
+                const dataObj = {
+                    id: window.currentEditId || ("IT_" + new Date().getTime()),
+                    num: rawNum.startsWith('IT-') ? rawNum : "IT-" + rawNum,
+                    date: document.getElementById('r_date').value,
+                    clientName: document.getElementById('r_clientName').value || 'Sin Nombre',
+                    clientDoc: document.getElementById('r_clientDoc').value || '',
+                    clientPhone: document.getElementById('r_clientPhone').value || '',
+                    equipment: document.getElementById('r_equipment').value || 'No especificado',
+                    brand: document.getElementById('r_brand').value || '',
+                    serial: document.getElementById('r_serial').value || '',
+                    issue: document.getElementById('r_issue').value || '',
+                    diagnosis: document.getElementById('r_diagnosis').value || '',
+                    solution: document.getElementById('r_solution').value || ''
+                };
+
+                window.setCloudStatus('syncing');
+                const response = await fetch(window.WEBHOOK_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: "save_informe", data: dataObj })
+                });
+
+                if(response.ok) {
+                    window.setCloudStatus('success');
+                    btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> ¡Guardado!';
+                    
+                    window.currentEditId = dataObj.id;
+                    
+                    const idx = reportHistory.findIndex(r => r.id === dataObj.id);
+                    if(idx > -1) reportHistory[idx] = dataObj;
+                    else reportHistory.unshift(dataObj);
+                    window.renderHistoryTable();
+
+                } else {
+                    throw new Error("Fallo en la nube");
+                }
+                lucide.createIcons();
+
+            } catch (error) {
+                alert("Error al guardar el informe en la nube.");
+                btn.innerHTML = '<i data-lucide="x" class="w-4 h-4"></i> Error';
+                lucide.createIcons();
+                window.setCloudStatus('error');
+            } finally {
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-75', 'cursor-wait');
+                    lucide.createIcons();
+                }, 2500);
+            }
+        };
+
+        window.onload = window.initDefaults;
+
+    </script>
+</body>
+</html>
