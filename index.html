@@ -61,7 +61,7 @@
         input:focus, textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); transition: all 0.2s ease; }
     </style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden text-sm">
+<body class="h-screen flex flex-col overflow-hidden text-sm relative">
 
     <!-- Header / Navbar -->
     <header class="bg-white/80 backdrop-blur-md border-b border-blue-100 h-16 flex items-center px-6 justify-between shrink-0 z-20 shadow-sm relative">
@@ -78,7 +78,6 @@
             </div>
         </div>
         <div class="flex items-center gap-3 flex-wrap justify-end">
-            
             <button onclick="window.openHistoryModal()" class="px-3.5 py-2 bg-brand-dark hover:bg-slate-800 text-white rounded-xl transition-all duration-200 flex items-center gap-2 font-semibold shadow-md hover:shadow-lg">
                 <i data-lucide="database" class="w-4 h-4 text-brand-accent"></i> BD Informes
             </button>
@@ -245,6 +244,24 @@
         </div>
     </div>
 
+    <!-- CONTENEDOR DE TOASTS (Notificaciones) -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- MODAL DE CONFIRMACIÓN PERSONALIZADO -->
+    <div id="customConfirmModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4 opacity-0 transition-opacity duration-200">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center transform scale-95 transition-transform duration-200">
+            <div id="confirmIcon" class="w-12 h-12 rounded-full bg-red-100 text-red-500 mx-auto flex items-center justify-center mb-4">
+                <i data-lucide="alert-circle" class="w-6 h-6"></i>
+            </div>
+            <h3 id="confirmTitle" class="text-lg font-black text-slate-800 mb-2"></h3>
+            <p id="confirmMessage" class="text-sm text-slate-600 mb-6 font-medium"></p>
+            <div class="flex justify-center gap-3">
+                <button onclick="window.closeConfirm()" class="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition-colors">Cancelar</button>
+                <button id="confirmBtn" class="px-5 py-2.5 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-colors shadow-md shadow-red-500/20">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         
         // ==========================================
@@ -252,24 +269,85 @@
         // ==========================================
         window.WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwQyGYES7WfxQVD3aUz7zgPwIop0uq1V5SofopV7Gt1TeL_aiqX7wlBCFIXr1QgRYWlQA/exec";
 
+        // Global State
+        window.currentEditId = null;
+        let reportHistory = [];
+        window.informeImages = []; 
+        window.reportFontSize = 13;
+
+        // Auto-uppercase inputs ONLY for Search History and specific identifiers if needed. 
+        // REMOVED FOR ALL GENERAL TEXT INPUTS/TEXTAREAS AS REQUESTED.
         document.addEventListener('input', function(e) {
-            if ((e.target.tagName === 'INPUT' && e.target.type === 'text') || e.target.tagName === 'TEXTAREA') {
-                if (e.target.id === 'searchHistory') return;
-                const start = e.target.selectionStart;
-                const end = e.target.selectionEnd;
-                e.target.value = e.target.value.toUpperCase();
-                e.target.setSelectionRange(start, end);
-            }
+            // Se mantiene vacío intencionalmente para preservar el case original del usuario
+            // en campos como r_clientName, r_issue, r_diagnosis, etc.
         });
 
         lucide.createIcons();
 
-        window.currentEditId = null;
-        let reportHistory = [];
-        window.informeImages = []; 
-        
-        // Control de tamaño de letra global
-        window.reportFontSize = 13;
+        // CUSTOM UI HELPERS
+        window.showToast = (message, type = 'info') => {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let bgClass = 'bg-slate-800';
+            let icon = '<i data-lucide="info" class="w-4 h-4"></i>';
+            if(type === 'error') { bgClass = 'bg-red-500'; icon = '<i data-lucide="alert-circle" class="w-4 h-4"></i>'; }
+            if(type === 'success') { bgClass = 'bg-emerald-500'; icon = '<i data-lucide="check-circle" class="w-4 h-4"></i>'; }
+            
+            toast.className = `${bgClass} text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 font-medium text-sm transform translate-y-4 opacity-0 transition-all duration-300 pointer-events-auto`;
+            toast.innerHTML = `${icon} <span>${message}</span>`;
+            
+            container.appendChild(toast);
+            lucide.createIcons({root: toast});
+            
+            // Animate in
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-4', 'opacity-0');
+            });
+            
+            // Remove after delay
+            setTimeout(() => {
+                toast.classList.add('translate-y-4', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        };
+
+        let confirmCallback = null;
+        window.askConfirm = (title, message, btnText, btnColorClass, onConfirm) => {
+            const modal = document.getElementById('customConfirmModal');
+            const inner = modal.querySelector('div.bg-white');
+            document.getElementById('confirmTitle').innerText = title;
+            document.getElementById('confirmMessage').innerText = message;
+            
+            const btn = document.getElementById('confirmBtn');
+            btn.innerText = btnText;
+            btn.className = `px-5 py-2.5 text-white rounded-xl font-bold transition-colors shadow-md ${btnColorClass}`;
+            
+            confirmCallback = onConfirm;
+            
+            modal.classList.remove('hidden');
+            // Small delay to allow display:block to apply before animating opacity
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                inner.classList.remove('scale-95');
+            }, 10);
+        };
+
+        window.closeConfirm = () => {
+            const modal = document.getElementById('customConfirmModal');
+            const inner = modal.querySelector('div.bg-white');
+            modal.classList.add('opacity-0');
+            inner.classList.add('scale-95');
+            setTimeout(() => { modal.classList.add('hidden'); }, 200);
+            confirmCallback = null;
+        };
+
+        document.getElementById('confirmBtn').addEventListener('click', () => {
+            if(confirmCallback) confirmCallback();
+            window.closeConfirm();
+        });
+
+
         window.changeFontSize = (val) => {
             window.reportFontSize = parseInt(val);
             document.getElementById('font-size-display').innerText = val + 'px';
@@ -302,13 +380,9 @@
                     inputRep.value = String(data.nextRepNum || 1).padStart(4, '0');
                 }
                 
-                // Solución al problema de 'undefined': 
-                // Acepta datos ya sea que vengan del script de informes o del script maestro
                 let historyArray = data.informes || data.history || [];
                 reportHistory = historyArray;
                 
-                // Si viene del script maestro (data.informes), necesitamos revertirlo para ver los últimos primero.
-                // Si viene de data.history, el script de GS ya lo revirtió.
                 if (data.informes) {
                     reportHistory = historyArray.reverse();
                 }
@@ -363,7 +437,7 @@
                 `;
                 tbody.appendChild(tr);
             });
-            lucide.createIcons();
+            lucide.createIcons({root: tbody});
         };
 
         window.loadReport = (id) => {
@@ -388,22 +462,32 @@
             window.informeImages = []; 
             window.updatePreview();
             window.closeHistoryModal();
+            window.showToast("Informe cargado correctamente", "success");
         };
 
-        window.deleteReport = async (id) => {
-            if (confirm("¿Eliminar permanentemente este Informe?")) {
-                try {
-                    window.setCloudStatus('syncing');
-                    await fetch(window.WEBHOOK_URL, { method: 'POST', body: JSON.stringify({ action: "delete_informe", id: id }) });
-                    reportHistory = reportHistory.filter(r => r.id !== id);
-                    window.renderHistoryTable();
-                    window.setCloudStatus('success');
-                } catch(e) { window.setCloudStatus('error'); }
-            }
+        window.deleteReport = (id) => {
+            window.askConfirm(
+                "Eliminar Informe", 
+                "¿Estás seguro de que deseas eliminar permanentemente este Informe Técnico?", 
+                "Eliminar", 
+                "bg-red-500 hover:bg-red-600 shadow-red-500/20", 
+                async () => {
+                    try {
+                        window.setCloudStatus('syncing');
+                        await fetch(window.WEBHOOK_URL, { method: 'POST', body: JSON.stringify({ action: "delete_informe", id: id }) });
+                        reportHistory = reportHistory.filter(r => r.id !== id);
+                        window.renderHistoryTable();
+                        window.setCloudStatus('success');
+                        window.showToast("Informe eliminado", "info");
+                    } catch(e) { 
+                        window.setCloudStatus('error'); 
+                        window.showToast("Error al eliminar", "error");
+                    }
+                }
+            );
         };
 
         window.downloadReportFromDB = (id, btn) => {
-            // Carga el informe rápidamente y dispara la generación de PDF
             window.loadReport(id);
             setTimeout(() => {
                 const pdfBtn = document.querySelector('button[onclick="window.generatePDF(this)"]');
@@ -416,7 +500,7 @@
             clearTimeout(previewTimeout);
             previewTimeout = setTimeout(() => {
                 window.renderPaginatedReport();
-            }, 300); // Retraso leve para no sobrecargar al teclear rápido
+            }, 300); 
         };
 
         window.renderPaginatedReport = () => {
@@ -424,6 +508,7 @@
             if(!wrapper) return;
             wrapper.innerHTML = ''; 
 
+            // Gather Data
             const num = document.getElementById('r_num').value || '0000';
             const dateRaw = document.getElementById('r_date').value;
             const date = dateRaw ? dateRaw.split('-').reverse().join('/') : '--/--/----';
@@ -440,11 +525,12 @@
             let solutionText = document.getElementById('r_solution').value;
             if (!solutionText.trim()) solutionText = 'Pendiente.';
 
-            // LÍMITES ESTRICTOS BASADOS EN ALTURAS REALES DEL A4 (1122 píxeles a escala 1)
-            const SAFE_HEIGHT = 920; 
-            const FOOTER_SAFE_HEIGHT = 700; 
+            // CONSTANTS FOR A4 PAGINATION
+            // Altura total A4 a 96dpi aprox 1122px. Padding p-8 es 32px arriba y abajo (64px total).
+            // Usamos 1020 como límite seguro para el contenido interno.
+            const SAFE_MAX_HEIGHT = 1020; 
 
-            // Función creadora de nuevas páginas perfectas
+            // Función para crear una página nueva
             function createPage(pageNum) {
                 const page = document.createElement('div');
                 page.className = 'a4-preview bg-white relative z-0 shrink-0';
@@ -455,30 +541,11 @@
                 page.appendChild(contentWrapper);
 
                 const flowContainer = document.createElement('div');
-                flowContainer.className = 'w-full shrink-0';
+                flowContainer.className = 'w-full shrink-0 flex flex-col';
                 contentWrapper.appendChild(flowContainer);
 
-                const footerContainer = document.createElement('div');
-                footerContainer.className = 'mt-auto flex flex-col w-full shrink-0 hidden';
-                
-                // La cabecera siempre mantiene el tamaño original, independientemente del slider
-                footerContainer.innerHTML = `
-                    <div class="mt-8 flex justify-center items-end pb-8">
-                        <div class="w-72 text-center flex flex-col items-center">
-                            <img src="https://i.imgur.com/R2Wi8kr.png" alt="Firma Autorizada" class="h-24 object-contain z-10 -mb-3">
-                            <div class="border-t-2 border-brand-corp/60 w-full pt-2 font-bold text-sm text-slate-800">José Leonaldo Vizcarra Ramirez</div>
-                            <div class="text-xs text-slate-500 font-medium mt-1">DNI: 44865269<br><span class="font-bold text-brand-tech">Técnico Especialista - KGB Distribuidores</span></div>
-                        </div>
-                    </div>
-                    <div class="text-center border-t border-brand-corp/20 pt-3 relative">
-                        <p class="text-[10px] font-bold text-brand-corp/60 uppercase">Este documento certifica el estado técnico del equipo al momento de la revisión.</p>
-                        <p class="absolute bottom-1 right-2 text-[8px] font-black text-brand-tech opacity-70 uppercase tracking-widest">Creado por JVIZCARRA</p>
-                    </div>
-                `;
-                contentWrapper.appendChild(footerContainer);
-
+                // Add Header based on page number
                 if (pageNum === 1) {
-                    // El bloque de datos usa window.reportFontSize
                     flowContainer.innerHTML = `
                         <div class="flex justify-between items-start mb-6 pb-4 border-b-2 border-brand-corp/30 shrink-0">
                             <div class="flex items-center gap-6 flex-1 min-w-0">
@@ -525,94 +592,103 @@
                         </div>
                     `;
                 }
-                return { page, contentWrapper, flowContainer, footerContainer };
+                return { page, flowContainer };
             }
 
-            let pageIndex = 1;
-            let currentObj = createPage(pageIndex);
-            wrapper.appendChild(currentObj.page);
+            // Reference object to pass around current page state
+            let renderState = {
+                pageIndex: 1,
+                currentObj: createPage(1)
+            };
+            wrapper.appendChild(renderState.currentObj.page);
 
-            const isOverFlowing = () => currentObj.flowContainer.offsetHeight > SAFE_HEIGHT;
+            // Función Helper para agregar bloques de texto con salto de página inteligente
+            function appendTextFlow(text, titleHTML, borderClass, renderState) {
+                // Agregar Título
+                let block = document.createElement('div');
+                block.className = 'shrink-0 mb-4 w-full';
+                block.innerHTML = titleHTML;
+                let textBox = document.createElement('div');
+                textBox.className = `bg-white/70 backdrop-blur-sm border ${borderClass} rounded-b-lg rounded-tr-lg p-3 text-gray-800 whitespace-pre-wrap break-words`;
+                textBox.style.fontSize = `${window.reportFontSize}px`;
+                textBox.style.lineHeight = '1.5';
+                block.appendChild(textBox);
+                
+                renderState.currentObj.flowContainer.appendChild(block);
+
+                // Tokenizar e insertar texto
+                const tokens = text.match(/\S+|\s+/g) || [];
+                for (let i = 0; i < tokens.length; i++) {
+                    let token = tokens[i];
+                    let textNode = document.createTextNode(token);
+                    textBox.appendChild(textNode);
+                    
+                    // Comprobar desbordamiento (Overflow)
+                    if (renderState.currentObj.flowContainer.offsetHeight > SAFE_MAX_HEIGHT) {
+                        textNode.remove(); // Quitar la palabra que causó el desborde
+                        
+                        // Crear nueva página
+                        renderState.pageIndex++;
+                        renderState.currentObj = createPage(renderState.pageIndex);
+                        wrapper.appendChild(renderState.currentObj.page);
+                        
+                        // Crear un nuevo bloque contenedor en la nueva página
+                        block = document.createElement('div');
+                        block.className = 'shrink-0 mb-4 w-full';
+                        // Modificar el título para indicar "(Cont.)"
+                        let contTitle = titleHTML.replace('</div>', ' (Cont.)</div>');
+                        block.innerHTML = contTitle;
+                        
+                        textBox = document.createElement('div');
+                        textBox.className = `bg-white/70 backdrop-blur-sm border ${borderClass} rounded-b-lg rounded-tr-lg p-3 text-gray-800 whitespace-pre-wrap break-words`;
+                        textBox.style.fontSize = `${window.reportFontSize}px`;
+                        textBox.style.lineHeight = '1.5';
+                        block.appendChild(textBox);
+                        renderState.currentObj.flowContainer.appendChild(block);
+                        
+                        // Añadir la palabra desbordada a la nueva página
+                        textBox.appendChild(document.createTextNode(token));
+                    }
+                }
+            }
 
             // BLOQUE 1: MOTIVO
-            const issueNode = document.createElement('div');
-            issueNode.className = 'shrink-0 mb-4 w-full';
-            issueNode.innerHTML = `
-                <div class="bg-red-500 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-t-lg inline-block shadow-sm w-max">Motivo de Ingreso</div>
-                <div class="bg-white/70 backdrop-blur-sm border border-red-200 rounded-b-lg rounded-tr-lg p-3 text-gray-800 whitespace-pre-wrap break-words" style="font-size: ${window.reportFontSize}px; line-height: 1.5;">${issue}</div>
+            const issueTitle = `<div class="bg-red-500 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-t-lg inline-block shadow-sm w-max">Motivo de Ingreso</div>`;
+            appendTextFlow(issue, issueTitle, 'border-red-200', renderState);
+
+            // BLOQUE 2: DIAGNÓSTICO
+            const diagTitle = `<div class="bg-brand-tech text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-t-lg inline-block shadow-sm w-max">Diagnóstico Técnico</div>`;
+            appendTextFlow(diagnosisText, diagTitle, 'border-blue-200', renderState);
+
+            // BLOQUE 3: CONCLUSIÓN
+            const solTitle = `<div class="bg-emerald-500 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-t-lg inline-block shadow-sm w-max">Conclusión / Recomendación</div>`;
+            appendTextFlow(solutionText, solTitle, 'border-emerald-200', renderState);
+
+            // BLOQUE 4: FIRMA FLUIDA
+            // La firma ahora es un bloque regular que intenta insertarse al final.
+            const sigBlock = document.createElement('div');
+            sigBlock.className = 'mt-6 flex justify-center items-end pb-4 shrink-0';
+            // Firma más pequeña para que encaje mejor (h-16 y textos más chicos)
+            sigBlock.innerHTML = `
+                <div class="w-64 text-center flex flex-col items-center">
+                    <img src="https://i.imgur.com/R2Wi8kr.png" alt="Firma Autorizada" class="h-16 object-contain z-10 -mb-2">
+                    <div class="border-t border-brand-corp/60 w-full pt-1.5 font-bold text-[13px] text-slate-800">José Leonaldo Vizcarra Ramirez</div>
+                    <div class="text-[11px] text-slate-500 font-medium mt-0.5">DNI: 44865269<br><span class="font-bold text-brand-tech">Técnico Especialista - KGB</span></div>
+                </div>
             `;
-            currentObj.flowContainer.appendChild(issueNode);
-
-            // BLOQUE 2: DIAGNÓSTICO CON TOKENIZACIÓN DE PALABRAS PARA SALTO DE PÁGINA
-            const addDiagContainer = (isCont) => {
-                const d = document.createElement('div');
-                d.className = 'shrink-0 mb-4 w-full';
-                d.innerHTML = `
-                    <div class="bg-brand-tech text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-t-lg inline-block shadow-sm w-max">
-                        ${isCont ? 'Diagnóstico Técnico (Cont.)' : 'Diagnóstico Técnico'}
-                    </div>
-                    <div class="diag-text bg-white/70 backdrop-blur-sm border border-blue-200 rounded-b-lg rounded-tr-lg p-3 text-gray-800 whitespace-pre-wrap break-words" style="font-size: ${window.reportFontSize}px; line-height: 1.5;"></div>
-                `;
-                currentObj.flowContainer.appendChild(d);
-                return d.querySelector('.diag-text');
-            };
-
-            let diagBox = addDiagContainer(false);
-            const diagTokens = diagnosisText.match(/\S+|\s+/g) || [];
             
-            for(let i = 0; i < diagTokens.length; i++) {
-                let token = diagTokens[i];
-                let textNode = document.createTextNode(token);
-                diagBox.appendChild(textNode);
-                
-                if(isOverFlowing()) {
-                    textNode.remove(); 
-                    pageIndex++;
-                    currentObj = createPage(pageIndex); 
-                    wrapper.appendChild(currentObj.page);
-                    diagBox = addDiagContainer(true); 
-                    diagBox.appendChild(document.createTextNode(token)); 
-                }
-            }
-
-            // BLOQUE 3: CONCLUSIÓN CON TOKENIZACIÓN
-            const addSolContainer = (isCont) => {
-                const d = document.createElement('div');
-                d.className = 'shrink-0 mb-4 w-full';
-                d.innerHTML = `
-                    <div class="bg-emerald-500 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-t-lg inline-block shadow-sm w-max">
-                        ${isCont ? 'Conclusión / Recomendación (Cont.)' : 'Conclusión / Recomendación'}
-                    </div>
-                    <div class="sol-text bg-white/70 backdrop-blur-sm border border-emerald-200 rounded-b-lg rounded-tr-lg p-3 text-gray-800 whitespace-pre-wrap break-words" style="font-size: ${window.reportFontSize}px; line-height: 1.5;"></div>
-                `;
-                currentObj.flowContainer.appendChild(d);
-                return d.querySelector('.sol-text');
-            };
-
-            let solBox = addSolContainer(false);
-            const solTokens = solutionText.match(/\S+|\s+/g) || [];
+            // Adjuntamos la firma al flujo actual
+            renderState.currentObj.flowContainer.appendChild(sigBlock);
             
-            for(let i = 0; i < solTokens.length; i++) {
-                let token = solTokens[i];
-                let textNode = document.createTextNode(token);
-                solBox.appendChild(textNode);
-                if(isOverFlowing()) {
-                    textNode.remove();
-                    pageIndex++;
-                    currentObj = createPage(pageIndex);
-                    wrapper.appendChild(currentObj.page);
-                    solBox = addSolContainer(true);
-                    solBox.appendChild(document.createTextNode(token));
-                }
+            // Verificamos si la firma rompe el límite de la página
+            if (renderState.currentObj.flowContainer.offsetHeight > SAFE_MAX_HEIGHT) {
+                // Si rompe, la quitamos y la pasamos a una hoja nueva
+                sigBlock.remove();
+                renderState.pageIndex++;
+                renderState.currentObj = createPage(renderState.pageIndex);
+                wrapper.appendChild(renderState.currentObj.page);
+                renderState.currentObj.flowContainer.appendChild(sigBlock);
             }
-
-            // BLOQUE 4: FIRMA SEGURA AL FINAL
-            if (currentObj.flowContainer.offsetHeight > FOOTER_SAFE_HEIGHT) {
-                pageIndex++;
-                currentObj = createPage(pageIndex);
-                wrapper.appendChild(currentObj.page);
-            }
-            currentObj.footerContainer.classList.remove('hidden');
 
             lucide.createIcons({root: wrapper});
             window.renderInformeImages(); 
@@ -694,24 +770,31 @@
         };
 
         window.clearForm = () => {
-            if(confirm('¿Crear un nuevo informe técnico en blanco?')) {
-                document.getElementById('r_clientName').value = '';
-                document.getElementById('r_clientDoc').value = '';
-                document.getElementById('r_clientPhone').value = '';
-                document.getElementById('r_equipment').value = '';
-                document.getElementById('r_brand').value = '';
-                document.getElementById('r_serial').value = '';
-                document.getElementById('r_issue').value = '';
-                document.getElementById('r_diagnosis').value = '';
-                document.getElementById('r_solution').value = '';
-                
-                window.currentEditId = null; 
-                window.informeImages = [];
-                
-                const now = new Date();
-                document.getElementById('r_date').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                window.fetchData();
-            }
+            window.askConfirm(
+                "Nuevo Informe", 
+                "¿Deseas crear un informe técnico en blanco? Se perderán los datos no guardados.", 
+                "Crear Nuevo", 
+                "bg-brand-tech hover:bg-blue-600 shadow-brand-tech/20", 
+                () => {
+                    document.getElementById('r_clientName').value = '';
+                    document.getElementById('r_clientDoc').value = '';
+                    document.getElementById('r_clientPhone').value = '';
+                    document.getElementById('r_equipment').value = '';
+                    document.getElementById('r_brand').value = '';
+                    document.getElementById('r_serial').value = '';
+                    document.getElementById('r_issue').value = '';
+                    document.getElementById('r_diagnosis').value = '';
+                    document.getElementById('r_solution').value = '';
+                    
+                    window.currentEditId = null; 
+                    window.informeImages = [];
+                    
+                    const now = new Date();
+                    document.getElementById('r_date').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                    window.fetchData();
+                    window.showToast("Formulario limpiado", "success");
+                }
+            );
         };
 
         window.generatePDF = (btn) => {
@@ -752,12 +835,16 @@
                 });
                 lucide.createIcons();
                 window.adjustScale(); 
+                window.showToast("PDF Generado exitosamente", "success");
             });
         };
 
         window.sendWhatsApp = (btn) => {
             const phoneRaw = document.getElementById('r_clientPhone').value.trim();
-            if (!phoneRaw) return alert("Ingresa el número de teléfono en los 'Datos del Cliente'.");
+            if (!phoneRaw) {
+                window.showToast("Ingresa el número de teléfono en los 'Datos del Cliente'.", "error");
+                return;
+            }
             
             let phone = phoneRaw.replace(/\D/g, '');
             if (phone.length === 9 && phone.startsWith('9')) phone = '51' + phone;
@@ -826,10 +913,11 @@
                     if(idx > -1) reportHistory[idx] = dataObj;
                     else reportHistory.unshift(dataObj);
                     window.renderHistoryTable();
+                    window.showToast("Informe guardado en la nube", "success");
                 } else throw new Error();
                 lucide.createIcons();
             } catch (error) {
-                alert("Error al guardar el informe en la nube.");
+                window.showToast("Error al guardar el informe.", "error");
                 btn.innerHTML = '<i data-lucide="x" class="w-4 h-4"></i> Error';
                 lucide.createIcons();
                 window.setCloudStatus('error');
