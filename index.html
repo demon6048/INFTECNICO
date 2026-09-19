@@ -42,7 +42,7 @@
             position: relative; z-index: 0;
             flex-shrink: 0; 
             display: block;
-            overflow: hidden; /* Corta cualquier desborde visual */
+            overflow: hidden; 
         }
 
         .hide-scrollbar::-webkit-scrollbar { width: 6px; }
@@ -154,6 +154,7 @@
                     </div>
                 </div>
 
+                <!-- CONTROLADOR DE TAMAÑO DE LETRA -->
                 <div class="bg-slate-100 p-4 rounded-xl border border-slate-200 shadow-inner mt-4 mb-2">
                     <div class="flex justify-between items-center mb-2">
                         <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5"><i data-lucide="type" class="w-3 h-3"></i> Tamaño de Letra del Contenido</label>
@@ -200,6 +201,7 @@
         <!-- LADO DERECHO: Vista Previa Paginada -->
         <section id="preview-wrapper-section" class="w-full lg:w-[50%] xl:w-[50%] h-full overflow-y-auto bg-slate-200 p-4 lg:p-8 flex flex-col items-center shadow-inner">
             <div id="report-preview-scaler" class="origin-top flex flex-col items-center transition-transform duration-200 z-10 w-full pb-20">
+                <!-- Contenedor dinámico de hojas PDF -->
                 <div id="informe-pdf-wrapper" class="flex flex-col items-center gap-6 w-full"></div>
             </div>
         </section>
@@ -244,6 +246,7 @@
     </div>
 
     <script type="module">
+        
         // ==========================================
         // URL DE TU GOOGLE SHEETS
         // ==========================================
@@ -298,13 +301,23 @@
                 if (!window.currentEditId) {
                     inputRep.value = String(data.nextRepNum || 1).padStart(4, '0');
                 }
+                
+                // Solución al problema de 'undefined': 
+                // Acepta datos ya sea que vengan del script de informes o del script maestro
+                let historyArray = data.informes || data.history || [];
+                reportHistory = historyArray;
+                
+                // Si viene del script maestro (data.informes), necesitamos revertirlo para ver los últimos primero.
+                // Si viene de data.history, el script de GS ya lo revirtió.
                 if (data.informes) {
-                    reportHistory = data.informes.reverse();
-                    window.renderHistoryTable();
+                    reportHistory = historyArray.reverse();
                 }
+
+                window.renderHistoryTable();
                 window.setCloudStatus('success'); 
                 window.updatePreview();
             } catch (error) {
+                console.error("Error al conectar con la base de datos:", error);
                 window.setCloudStatus('error'); 
             }
         };
@@ -390,6 +403,7 @@
         };
 
         window.downloadReportFromDB = (id, btn) => {
+            // Carga el informe rápidamente y dispara la generación de PDF
             window.loadReport(id);
             setTimeout(() => {
                 const pdfBtn = document.querySelector('button[onclick="window.generatePDF(this)"]');
@@ -402,7 +416,7 @@
             clearTimeout(previewTimeout);
             previewTimeout = setTimeout(() => {
                 window.renderPaginatedReport();
-            }, 200); 
+            }, 300); // Retraso leve para no sobrecargar al teclear rápido
         };
 
         window.renderPaginatedReport = () => {
@@ -446,6 +460,8 @@
 
                 const footerContainer = document.createElement('div');
                 footerContainer.className = 'mt-auto flex flex-col w-full shrink-0 hidden';
+                
+                // La cabecera siempre mantiene el tamaño original, independientemente del slider
                 footerContainer.innerHTML = `
                     <div class="mt-8 flex justify-center items-end pb-8">
                         <div class="w-72 text-center flex flex-col items-center">
@@ -462,6 +478,7 @@
                 contentWrapper.appendChild(footerContainer);
 
                 if (pageNum === 1) {
+                    // El bloque de datos usa window.reportFontSize
                     flowContainer.innerHTML = `
                         <div class="flex justify-between items-start mb-6 pb-4 border-b-2 border-brand-corp/30 shrink-0">
                             <div class="flex items-center gap-6 flex-1 min-w-0">
@@ -526,7 +543,7 @@
             `;
             currentObj.flowContainer.appendChild(issueNode);
 
-            // BLOQUE 2: DIAGNÓSTICO
+            // BLOQUE 2: DIAGNÓSTICO CON TOKENIZACIÓN DE PALABRAS PARA SALTO DE PÁGINA
             const addDiagContainer = (isCont) => {
                 const d = document.createElement('div');
                 d.className = 'shrink-0 mb-4 w-full';
@@ -545,10 +562,11 @@
             
             for(let i = 0; i < diagTokens.length; i++) {
                 let token = diagTokens[i];
-                diagBox.appendChild(document.createTextNode(token));
+                let textNode = document.createTextNode(token);
+                diagBox.appendChild(textNode);
                 
                 if(isOverFlowing()) {
-                    diagBox.lastChild.remove(); 
+                    textNode.remove(); 
                     pageIndex++;
                     currentObj = createPage(pageIndex); 
                     wrapper.appendChild(currentObj.page);
@@ -557,7 +575,7 @@
                 }
             }
 
-            // BLOQUE 3: CONCLUSIÓN
+            // BLOQUE 3: CONCLUSIÓN CON TOKENIZACIÓN
             const addSolContainer = (isCont) => {
                 const d = document.createElement('div');
                 d.className = 'shrink-0 mb-4 w-full';
@@ -576,9 +594,10 @@
             
             for(let i = 0; i < solTokens.length; i++) {
                 let token = solTokens[i];
-                solBox.appendChild(document.createTextNode(token));
+                let textNode = document.createTextNode(token);
+                solBox.appendChild(textNode);
                 if(isOverFlowing()) {
-                    solBox.lastChild.remove();
+                    textNode.remove();
                     pageIndex++;
                     currentObj = createPage(pageIndex);
                     wrapper.appendChild(currentObj.page);
@@ -587,7 +606,7 @@
                 }
             }
 
-            // BLOQUE 4: FIRMA SEGURA
+            // BLOQUE 4: FIRMA SEGURA AL FINAL
             if (currentObj.flowContainer.offsetHeight > FOOTER_SAFE_HEIGHT) {
                 pageIndex++;
                 currentObj = createPage(pageIndex);
